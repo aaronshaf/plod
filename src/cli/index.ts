@@ -152,46 +152,99 @@ function isConfigError(error: unknown): error is ConfigError {
   )
 }
 
+// Extract human-readable error messages from schema validation errors
+function extractValidationErrors(error: unknown): string[] {
+  const errorStr = String(error)
+  const messages: string[] = []
+
+  // Look for "is missing" patterns
+  const missingMatch = errorStr.match(/\["([^"]+)"\][^\n]*is missing/g)
+  if (missingMatch) {
+    missingMatch.forEach((match) => {
+      const field = match.match(/\["([^"]+)"\]/)
+      if (field) {
+        messages.push(`Missing required field: ${field[1]}`)
+      }
+    })
+  }
+
+  // Look for type errors
+  const typeMatch = errorStr.match(/Expected ([^,]+), actual ([^\n]+)/g)
+  if (typeMatch) {
+    typeMatch.forEach((match) => {
+      messages.push(match)
+    })
+  }
+
+  // If no specific errors found, provide generic message
+  if (messages.length === 0) {
+    messages.push('Configuration validation failed')
+  }
+
+  return messages
+}
+
 // Handle config errors with JSON Lines
 function handleConfigError(error: ConfigError) {
   switch (error._tag) {
     case 'ConfigNotFoundError':
       console.log(
-        JSON.stringify({
-          event: 'error',
-          type: 'config_not_found',
-          path: error.path,
-        })
+        JSON.stringify(
+          {
+            event: 'error',
+            type: 'config_not_found',
+            path: error.path,
+            message: `Configuration file not found: ${error.path}`,
+          },
+          null,
+          2
+        )
       )
       break
     case 'ConfigParseError':
       console.log(
-        JSON.stringify({
-          event: 'error',
-          type: 'config_parse_error',
-          path: error.path,
-          cause: String(error.cause),
-        })
+        JSON.stringify(
+          {
+            event: 'error',
+            type: 'config_parse_error',
+            path: error.path,
+            message: 'Invalid JSON syntax',
+            details: String(error.cause),
+          },
+          null,
+          2
+        )
       )
       break
     case 'ConfigValidationError':
+      const validationErrors = extractValidationErrors(error.errors)
       console.log(
-        JSON.stringify({
-          event: 'error',
-          type: 'config_validation_error',
-          path: error.path,
-          errors: String(error.errors),
-        })
+        JSON.stringify(
+          {
+            event: 'error',
+            type: 'config_validation_error',
+            path: error.path,
+            message: 'Configuration validation failed',
+            errors: validationErrors,
+          },
+          null,
+          2
+        )
       )
       break
     case 'ConfigAccessError':
       console.log(
-        JSON.stringify({
-          event: 'error',
-          type: 'config_access_error',
-          path: error.path,
-          cause: String(error.cause),
-        })
+        JSON.stringify(
+          {
+            event: 'error',
+            type: 'config_access_error',
+            path: error.path,
+            message: 'Failed to access configuration file',
+            details: String(error.cause),
+          },
+          null,
+          2
+        )
       )
       break
   }
