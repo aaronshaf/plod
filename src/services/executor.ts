@@ -40,7 +40,8 @@ export class CommandExecutionError {
   constructor(
     readonly command: string,
     readonly exitCode: number,
-    readonly stderr: string
+    readonly stderr: string,
+    readonly stdout: string = ''
   ) {}
 }
 
@@ -127,7 +128,8 @@ export const ExecutorServiceLive = Layer.effect(
                 throw new CommandExecutionError(
                   `${command} ${args.join(' ')}`,
                   exitCode,
-                  stderr
+                  stderr,
+                  stdout
                 )
               }
 
@@ -189,7 +191,7 @@ export const ExecutorServiceLive = Layer.effect(
               const stderr = await new Response(proc.stderr).text()
 
               if (exitCode !== 0) {
-                throw new CommandExecutionError(command, exitCode, stderr)
+                throw new CommandExecutionError(command, exitCode, stderr, stdout)
               }
 
               return {

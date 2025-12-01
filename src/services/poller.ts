@@ -187,12 +187,31 @@ export const PollerServiceLive = Layer.effect(
           yield* Effect.sleep(`${failureWaitSeconds} seconds`)
 
           // Extract build failures
-          const failuresResult = yield* executor.execute(config.commands.checkBuildFailures)
+          // Note: This command may return non-zero exit code if failures exist, which is expected
+          const failuresResult = yield* executor
+            .execute(config.commands.checkBuildFailures)
+            .pipe(
+              Effect.catchTag('CommandExecutionError', (error) => {
+                // If the command failed but produced output, use it anyway
+                // (e.g., jk returns exit code 1 when failures are found)
+                if (error.stdout || error.stderr) {
+                  return Effect.succeed({
+                    stdout: error.stdout,
+                    stderr: error.stderr,
+                    exitCode: error.exitCode,
+                  })
+                }
+                // Otherwise, re-throw the error
+                return Effect.fail(error)
+              })
+            )
+
+          const failureDetails = failuresResult.stdout || failuresResult.stderr
           console.log(JSON.stringify({ event: 'failures_extracted' }))
 
           // Run Claude to fix the issues
           console.log(JSON.stringify({ event: 'claude_started' }))
-          const workResult = yield* claudeWorker.work(config.work, failuresResult.stdout)
+          const workResult = yield* claudeWorker.work(config.work, failureDetails)
           console.log(JSON.stringify({ event: 'claude_finished' }))
 
           iterations.push({
