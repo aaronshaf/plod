@@ -98,9 +98,21 @@ export const ConfigServiceLive = Layer.effect(
           return yield* Effect.fail(new ConfigParseError(path, error))
         }
 
+        // Apply defaults to parsed config
+        const parsedObj = parsed as any
+        const configWithDefaults = {
+          ...parsedObj,
+          polling: {
+            intervalSeconds: 10,
+            maxPollTimeMinutes: 30,
+            maxWorkIterations: 10,
+            ...(parsedObj.polling || {}),
+          },
+        }
+
         // Validate against schema
         try {
-          const config = ConfigSchema.decode(parsed)
+          const config = ConfigSchema.decode(configWithDefaults)
           return config
         } catch (error) {
           return yield* Effect.fail(new ConfigValidationError(path, error))

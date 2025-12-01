@@ -47,17 +47,17 @@ export const PollingConfig = Schema.Struct({
     Schema.int(),
     Schema.positive(),
     Schema.annotations({ description: 'Seconds to wait between status checks' })
-  ).pipe(Schema.propertySignature, Schema.withConstructorDefault(() => 10)),
+  ),
   maxPollTimeMinutes: Schema.Number.pipe(
     Schema.int(),
     Schema.positive(),
     Schema.annotations({ description: 'Maximum minutes to wait for build to complete' })
-  ).pipe(Schema.propertySignature, Schema.withConstructorDefault(() => 30)),
+  ),
   maxWorkIterations: Schema.Number.pipe(
     Schema.int(),
     Schema.positive(),
     Schema.annotations({ description: 'Maximum number of fix-and-republish cycles' })
-  ).pipe(Schema.propertySignature, Schema.withConstructorDefault(() => 10)),
+  ),
 })
 
 export type PollingConfig = Schema.Schema.Type<typeof PollingConfig>
