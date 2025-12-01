@@ -21,8 +21,6 @@ program
 
 // Define the main start action
 const startAction = async (options: { config: string }) => {
-    console.log(chalk.bold('\n🤖 plod - Starting build monitoring...\n'))
-
     // Build the Effect layer stack
     const AppLive = Layer.mergeAll(
       ConfigServiceLive,
@@ -34,39 +32,38 @@ const startAction = async (options: { config: string }) => {
     // Main program
     const main = Effect.gen(function* () {
       // Load configuration from specified path
-      console.log(`Loading configuration from ${options.config}...`)
       const config = yield* loadConfigFrom(options.config)
-      console.log(chalk.green('✓ Configuration loaded\n'))
-
-      console.log('Configuration:')
-      console.log(`  Poll interval: ${config.polling.intervalSeconds}s`)
-      console.log(`  Max iterations: ${config.polling.maxIterations}`)
-      console.log(`  Work command: ${config.work.command} ${config.work.args.join(' ')}\n`)
+      console.log(
+        JSON.stringify({
+          event: 'config_loaded',
+          intervalSeconds: config.polling.intervalSeconds,
+          maxIterations: config.polling.maxIterations,
+        })
+      )
 
       // Start polling
       const poller = yield* PollerService
       const result = yield* poller.poll(config)
 
       // Print summary
-      console.log('\n' + chalk.bold('='.repeat(60)))
-      console.log(chalk.bold('Summary:'))
-      console.log('='.repeat(60))
-      console.log(`Total iterations: ${result.iterations.length}`)
-      console.log(`Final status: ${result.finalStatus}`)
+      const workedCount = result.iterations.filter((i) => i.workedOn).length
       console.log(
-        `Max iterations reached: ${result.maxIterationsReached ? 'Yes' : 'No'}`
+        JSON.stringify({
+          event: 'summary',
+          totalIterations: result.iterations.length,
+          finalStatus: result.finalStatus,
+          maxIterationsReached: result.maxIterationsReached,
+          claudeFixCount: workedCount,
+        })
       )
 
-      const workedCount = result.iterations.filter((i) => i.workedOn).length
-      console.log(`Times Claude fixed issues: ${workedCount}`)
-
       if (result.finalStatus === 'success') {
-        console.log(chalk.green('\n✓ Build succeeded!'))
+        console.log(JSON.stringify({ event: 'success' }))
       } else if (result.maxIterationsReached) {
-        console.log(chalk.yellow('\n⚠ Max iterations reached'))
+        console.log(JSON.stringify({ event: 'max_iterations_exceeded' }))
         process.exit(1)
       } else {
-        console.log(chalk.red('\n✗ Build failed'))
+        console.log(JSON.stringify({ event: 'failed' }))
         process.exit(1)
       }
     })
@@ -82,7 +79,12 @@ const startAction = async (options: { config: string }) => {
       if (error._tag === 'Some' && isConfigError(error.value)) {
         handleConfigError(error.value)
       } else {
-        console.error(chalk.red('\n✗ Error:'), Cause.pretty(cause))
+        console.log(
+          JSON.stringify({
+            event: 'error',
+            error: Cause.pretty(cause),
+          })
+        )
       }
       process.exit(1)
     }
@@ -103,13 +105,14 @@ program
   .description('Validate plod.config.json without running')
   .option('-c, --config <path>', 'Path to plod.config.json', 'plod.config.json')
   .action(async (options) => {
-    console.log(chalk.bold('\n🔍 Validating configuration...\n'))
-
     const main = Effect.gen(function* () {
       const config = yield* loadConfigFrom(options.config)
-      console.log(chalk.green('✓ Configuration is valid\n'))
-      console.log('Configuration:')
-      console.log(JSON.stringify(config, null, 2))
+      console.log(
+        JSON.stringify({
+          event: 'config_valid',
+          config,
+        })
+      )
     })
 
     const runnable = Effect.provide(main, ConfigServiceLive)
@@ -122,7 +125,12 @@ program
       if (error._tag === 'Some' && isConfigError(error.value)) {
         handleConfigError(error.value)
       } else {
-        console.error(chalk.red('\n✗ Error:'), Cause.pretty(cause))
+        console.log(
+          JSON.stringify({
+            event: 'error',
+            error: Cause.pretty(cause),
+          })
+        )
       }
       process.exit(1)
     }
@@ -143,27 +151,47 @@ function isConfigError(error: unknown): error is ConfigError {
   )
 }
 
-// Handle config errors with nice messages
+// Handle config errors with JSON Lines
 function handleConfigError(error: ConfigError) {
   switch (error._tag) {
     case 'ConfigNotFoundError':
-      console.error(chalk.red(`\n✗ Configuration file not found: ${error.path}`))
-      console.error('\nCreate a plod.config.json file in your project root.')
+      console.log(
+        JSON.stringify({
+          event: 'error',
+          type: 'config_not_found',
+          path: error.path,
+        })
+      )
       break
     case 'ConfigParseError':
-      console.error(chalk.red(`\n✗ Failed to parse configuration: ${error.path}`))
-      console.error('\nMake sure plod.config.json is valid JSON.')
-      console.error('Error:', error.cause)
+      console.log(
+        JSON.stringify({
+          event: 'error',
+          type: 'config_parse_error',
+          path: error.path,
+          cause: String(error.cause),
+        })
+      )
       break
     case 'ConfigValidationError':
-      console.error(chalk.red(`\n✗ Configuration validation failed: ${error.path}`))
-      console.error('\nConfiguration does not match expected schema.')
-      console.error('Errors:', error.errors)
+      console.log(
+        JSON.stringify({
+          event: 'error',
+          type: 'config_validation_error',
+          path: error.path,
+          errors: String(error.errors),
+        })
+      )
       break
     case 'ConfigAccessError':
-      console.error(chalk.red(`\n✗ Failed to access configuration file: ${error.path}`))
-      console.error('\nCheck file permissions and path.')
-      console.error('Error:', error.cause)
+      console.log(
+        JSON.stringify({
+          event: 'error',
+          type: 'config_access_error',
+          path: error.path,
+          cause: String(error.cause),
+        })
+      )
       break
   }
 }
