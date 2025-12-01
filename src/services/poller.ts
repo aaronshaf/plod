@@ -95,34 +95,45 @@ export const PollerServiceLive = Layer.effect(
     const poll = (config: PlodConfig): Effect.Effect<PollingResult, PollerError> =>
       Effect.gen(function* () {
         const iterations: IterationResult[] = []
-        let currentIteration = 0
+        let workIterationCount = 0
         const failureWaitSeconds = config.polling.intervalSeconds * 3
+        const maxPollTimeMs = config.polling.maxPollTimeMinutes * 60 * 1000
+        const startTime = Date.now()
 
         // Main polling loop
-        while (currentIteration < config.polling.maxIterations) {
-          currentIteration++
-          console.log(
-            JSON.stringify({
-              event: 'iteration_start',
-              iteration: currentIteration,
-              maxIterations: config.polling.maxIterations,
-            })
-          )
+        while (true) {
+          // Check if we've exceeded max polling time
+          const elapsedTime = Date.now() - startTime
+          if (elapsedTime > maxPollTimeMs) {
+            console.log(
+              JSON.stringify({
+                event: 'max_poll_time_exceeded',
+                elapsedMinutes: Math.floor(elapsedTime / 60000),
+              }, null, 2)
+            )
+            const finalStatusResult = yield* executor.execute(config.commands.checkBuildStatus)
+            const finalStatus = parseBuildStatus(finalStatusResult.stdout)
+            return {
+              iterations,
+              finalStatus,
+              maxIterationsReached: false,
+            }
+          }
 
           // Check build status
           const statusResult = yield* executor.execute(config.commands.checkBuildStatus)
           const status = parseBuildStatus(statusResult.stdout)
-          console.log(JSON.stringify({ event: 'build_status', status }))
+          console.log(JSON.stringify({ event: 'build_status', status }, null, 2))
 
           if (status === 'success') {
             // Build succeeded, we're done!
             iterations.push({
-              iteration: currentIteration,
+              iteration: workIterationCount,
               status,
               workedOn: false,
               timestamp: new Date(),
             })
-            console.log(JSON.stringify({ event: 'build_succeeded' }))
+            console.log(JSON.stringify({ event: 'build_succeeded' }, null, 2))
             return {
               iterations,
               finalStatus: status,
@@ -133,7 +144,7 @@ export const PollerServiceLive = Layer.effect(
           if (status === 'pending') {
             // Still building, wait and continue
             iterations.push({
-              iteration: currentIteration,
+              iteration: workIterationCount,
               status,
               workedOn: false,
               timestamp: new Date(),
@@ -142,32 +153,56 @@ export const PollerServiceLive = Layer.effect(
               JSON.stringify({
                 event: 'waiting',
                 seconds: config.polling.intervalSeconds,
-              })
+              }, null, 2)
             )
             yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
             continue
           }
 
           // status === 'failure'
+          // Check if we've hit max work iterations
+          if (workIterationCount >= config.polling.maxWorkIterations) {
+            console.log(
+              JSON.stringify({
+                event: 'max_work_iterations_reached',
+                count: workIterationCount,
+              }, null, 2)
+            )
+            return {
+              iterations,
+              finalStatus: status,
+              maxIterationsReached: true,
+            }
+          }
+
+          workIterationCount++
+          console.log(
+            JSON.stringify({
+              event: 'work_iteration_start',
+              iteration: workIterationCount,
+              maxWorkIterations: config.polling.maxWorkIterations,
+            }, null, 2)
+          )
+
           console.log(
             JSON.stringify({
               event: 'build_failed',
               waitingForLogs: failureWaitSeconds,
-            })
+            }, null, 2)
           )
           yield* Effect.sleep(`${failureWaitSeconds} seconds`)
 
           // Extract build failures
           const failuresResult = yield* executor.execute(config.commands.checkBuildFailures)
-          console.log(JSON.stringify({ event: 'failures_extracted' }))
+          console.log(JSON.stringify({ event: 'failures_extracted' }, null, 2))
 
           // Run Claude to fix the issues
-          console.log(JSON.stringify({ event: 'claude_started' }))
+          console.log(JSON.stringify({ event: 'claude_started' }, null, 2))
           const workResult = yield* claudeWorker.work(config.work, failuresResult.stdout)
-          console.log(JSON.stringify({ event: 'claude_finished' }))
+          console.log(JSON.stringify({ event: 'claude_finished' }, null, 2))
 
           iterations.push({
-            iteration: currentIteration,
+            iteration: workIterationCount,
             status,
             workedOn: true,
             timestamp: new Date(),
@@ -175,29 +210,16 @@ export const PollerServiceLive = Layer.effect(
 
           // Publish the fixes
           yield* executor.execute(config.commands.publish)
-          console.log(JSON.stringify({ event: 'fixes_published' }))
+          console.log(JSON.stringify({ event: 'fixes_published' }, null, 2))
 
           // Wait before checking status again
           console.log(
             JSON.stringify({
               event: 'waiting',
               seconds: config.polling.intervalSeconds,
-            })
+            }, null, 2)
           )
           yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
-        }
-
-        // Max iterations reached
-        console.log(JSON.stringify({ event: 'max_iterations_reached' }))
-
-        // Check final status
-        const finalStatusResult = yield* executor.execute(config.commands.checkBuildStatus)
-        const finalStatus = parseBuildStatus(finalStatusResult.stdout)
-
-        return {
-          iterations,
-          finalStatus,
-          maxIterationsReached: true,
         }
       })
 

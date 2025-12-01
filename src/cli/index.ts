@@ -37,8 +37,9 @@ const startAction = async (options: { config: string }) => {
         JSON.stringify({
           event: 'config_loaded',
           intervalSeconds: config.polling.intervalSeconds,
-          maxIterations: config.polling.maxIterations,
-        })
+          maxPollTimeMinutes: config.polling.maxPollTimeMinutes,
+          maxWorkIterations: config.polling.maxWorkIterations,
+        }, null, 2)
       )
 
       // Start polling
@@ -58,12 +59,12 @@ const startAction = async (options: { config: string }) => {
       )
 
       if (result.finalStatus === 'success') {
-        console.log(JSON.stringify({ event: 'success' }))
+        console.log(JSON.stringify({ event: 'success' }, null, 2))
       } else if (result.maxIterationsReached) {
-        console.log(JSON.stringify({ event: 'max_iterations_exceeded' }))
+        console.log(JSON.stringify({ event: 'max_iterations_exceeded' }, null, 2))
         process.exit(1)
       } else {
-        console.log(JSON.stringify({ event: 'failed' }))
+        console.log(JSON.stringify({ event: 'failed' }, null, 2))
         process.exit(1)
       }
     })

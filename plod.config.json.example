@@ -13,6 +13,7 @@
   },
   "polling": {
     "intervalSeconds": 10,
-    "maxIterations": 10
+    "maxPollTimeMinutes": 30,
+    "maxWorkIterations": 10
   }
 }

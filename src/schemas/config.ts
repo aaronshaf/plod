@@ -48,10 +48,15 @@ export const PollingConfig = Schema.Struct({
     Schema.positive(),
     Schema.annotations({ description: 'Seconds to wait between status checks' })
   ).pipe(Schema.propertySignature, Schema.withConstructorDefault(() => 10)),
-  maxIterations: Schema.Number.pipe(
+  maxPollTimeMinutes: Schema.Number.pipe(
     Schema.int(),
     Schema.positive(),
-    Schema.annotations({ description: 'Maximum number of fix-and-republish iterations' })
+    Schema.annotations({ description: 'Maximum minutes to wait for build to complete' })
+  ).pipe(Schema.propertySignature, Schema.withConstructorDefault(() => 30)),
+  maxWorkIterations: Schema.Number.pipe(
+    Schema.int(),
+    Schema.positive(),
+    Schema.annotations({ description: 'Maximum number of fix-and-republish cycles' })
   ).pipe(Schema.propertySignature, Schema.withConstructorDefault(() => 10)),
 })
 

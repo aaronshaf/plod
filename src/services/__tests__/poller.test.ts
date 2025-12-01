@@ -43,7 +43,8 @@ describe('PollerService', () => {
       },
       polling: {
         intervalSeconds: 1,
-        maxIterations: 3,
+        maxPollTimeMinutes: 1,
+        maxWorkIterations: 3,
       },
     }
 
