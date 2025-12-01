@@ -1,0 +1,191 @@
+/**
+ * Main polling service that orchestrates the build feedback loop
+ */
+import { Context, Effect, Layer, Schedule } from 'effect'
+import type { PlodConfig } from '../schemas/config.ts'
+import {
+  ExecutorService,
+  ExecutorServiceLive,
+  type CommandExecutionError,
+} from './executor.ts'
+import {
+  ClaudeWorkerService,
+  ClaudeWorkerServiceLive,
+  type ClaudeWorkerError,
+} from './claude-worker.ts'
+
+/**
+ * Build status result
+ */
+export type BuildStatus = 'success' | 'failure' | 'pending'
+
+/**
+ * Result of a polling iteration
+ */
+export interface IterationResult {
+  readonly iteration: number
+  readonly status: BuildStatus
+  readonly workedOn: boolean
+  readonly timestamp: Date
+}
+
+/**
+ * Final result of the polling process
+ */
+export interface PollingResult {
+  readonly iterations: ReadonlyArray<IterationResult>
+  readonly finalStatus: BuildStatus
+  readonly maxIterationsReached: boolean
+}
+
+/**
+ * Errors that can occur during polling
+ */
+export type PollerError = CommandExecutionError | ClaudeWorkerError
+
+/**
+ * Poller service interface
+ */
+export interface PollerService {
+  /**
+   * Start the main polling loop
+   */
+  readonly poll: (config: PlodConfig) => Effect.Effect<PollingResult, PollerError, never>
+}
+
+export const PollerService = Context.GenericTag<PollerService>('PollerService')
+
+/**
+ * Parse build status from command output using regex patterns
+ *
+ * Matches whole words or specific patterns to avoid false positives.
+ * For example, "This is not a success" won't match "success".
+ */
+const parseBuildStatus = (output: string): BuildStatus => {
+  const normalized = output.toLowerCase().trim()
+
+  // Match success patterns (whole words)
+  if (/\b(success|successful|passed|pass|ok)\b/.test(normalized)) {
+    return 'success'
+  }
+
+  // Match failure patterns (whole words)
+  if (/\b(fail(ure|ed)?|error|failed|broken)\b/.test(normalized)) {
+    return 'failure'
+  }
+
+  // Match pending/running patterns (whole words)
+  if (/\b(pending|running|in.?progress|building|queued)\b/.test(normalized)) {
+    return 'pending'
+  }
+
+  // Default to pending if status is unclear
+  return 'pending'
+}
+
+/**
+ * Live implementation of PollerService
+ */
+export const PollerServiceLive = Layer.effect(
+  PollerService,
+  Effect.gen(function* () {
+    const executor = yield* ExecutorService
+    const claudeWorker = yield* ClaudeWorkerService
+
+    const poll = (config: PlodConfig): Effect.Effect<PollingResult, PollerError> =>
+      Effect.gen(function* () {
+        const iterations: IterationResult[] = []
+        let currentIteration = 0
+
+        // Main polling loop
+        while (currentIteration < config.polling.maxIterations) {
+          currentIteration++
+          console.log(`\n[Iteration ${currentIteration}/${config.polling.maxIterations}]`)
+
+          // Check build status
+          console.log('Checking build status...')
+          const statusResult = yield* executor.execute(config.commands.checkBuildStatus)
+          const status = parseBuildStatus(statusResult.stdout)
+          console.log(`Build status: ${status}`)
+
+          if (status === 'success') {
+            // Build succeeded, we're done!
+            iterations.push({
+              iteration: currentIteration,
+              status,
+              workedOn: false,
+              timestamp: new Date(),
+            })
+            console.log('✓ Build succeeded!')
+            return {
+              iterations,
+              finalStatus: status,
+              maxIterationsReached: false,
+            }
+          }
+
+          if (status === 'pending') {
+            // Still building, wait and continue
+            iterations.push({
+              iteration: currentIteration,
+              status,
+              workedOn: false,
+              timestamp: new Date(),
+            })
+            console.log(`Waiting ${config.polling.intervalSeconds} seconds...`)
+            yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
+            continue
+          }
+
+          // status === 'failure'
+          console.log('✗ Build failed, waiting 30 seconds for logs to finalize...')
+          yield* Effect.sleep('30 seconds')
+
+          // Extract build failures
+          console.log('Extracting failure details...')
+          const failuresResult = yield* executor.execute(config.commands.checkBuildFailures)
+          console.log('Failure details extracted')
+
+          // Run Claude to fix the issues
+          console.log('Running Claude agent to fix issues...')
+          const workResult = yield* claudeWorker.work(config.work, failuresResult.stdout)
+          console.log('Claude agent finished')
+
+          iterations.push({
+            iteration: currentIteration,
+            status,
+            workedOn: true,
+            timestamp: new Date(),
+          })
+
+          // Publish the fixes
+          console.log('Publishing fixes...')
+          yield* executor.execute(config.commands.publish)
+          console.log('✓ Fixes published')
+
+          // Wait before checking status again
+          console.log(`Waiting ${config.polling.intervalSeconds} seconds before next check...`)
+          yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
+        }
+
+        // Max iterations reached
+        console.log(
+          `\n⚠ Maximum iterations (${config.polling.maxIterations}) reached`
+        )
+
+        // Check final status
+        const finalStatusResult = yield* executor.execute(config.commands.checkBuildStatus)
+        const finalStatus = parseBuildStatus(finalStatusResult.stdout)
+
+        return {
+          iterations,
+          finalStatus,
+          maxIterationsReached: true,
+        }
+      })
+
+    return PollerService.of({
+      poll,
+    })
+  })
+).pipe(Layer.provide(ExecutorServiceLive), Layer.provide(ClaudeWorkerServiceLive))
