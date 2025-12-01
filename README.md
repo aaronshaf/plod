@@ -14,12 +14,12 @@ Think of it like `gh run watch` but for Gerrit CI, with automatic failure remedi
 
 ## Features
 
-- 🔄 **Automated polling** - Continuously monitors build status
-- 🤖 **AI-powered fixes** - Uses Claude Code Agent SDK to resolve build failures
-- ⚙️ **Configurable workflow** - Define your own commands for publish, status check, and failure extraction
-- 🎯 **Smart iteration limits** - Prevents infinite loops with configurable max iterations
-- 📊 **Detailed reporting** - Shows iteration history and final status
-- 🛠️ **Built with Effect.js** - Type-safe, composable effects throughout
+- **Automated polling** - Continuously monitors build status
+- **AI-powered fixes** - Uses Claude Code Agent SDK to resolve build failures
+- **Configurable workflow** - Define your own commands for publish, status check, and failure extraction
+- **Smart iteration limits** - Prevents infinite loops with configurable max iterations
+- **Detailed reporting** - Shows iteration history and final status
+- **Built with Effect.js** - Type-safe, composable effects throughout
 
 ## Installation
 
