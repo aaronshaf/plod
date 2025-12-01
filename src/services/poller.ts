@@ -109,7 +109,7 @@ export const PollerServiceLive = Layer.effect(
               JSON.stringify({
                 event: 'max_poll_time_exceeded',
                 elapsedMinutes: Math.floor(elapsedTime / 60000),
-              }, null, 2)
+              })
             )
             const finalStatusResult = yield* executor.execute(config.commands.checkBuildStatus)
             const finalStatus = parseBuildStatus(finalStatusResult.stdout)
@@ -123,7 +123,7 @@ export const PollerServiceLive = Layer.effect(
           // Check build status
           const statusResult = yield* executor.execute(config.commands.checkBuildStatus)
           const status = parseBuildStatus(statusResult.stdout)
-          console.log(JSON.stringify({ event: 'build_status', status }, null, 2))
+          console.log(JSON.stringify({ event: 'build_status', status }))
 
           if (status === 'success') {
             // Build succeeded, we're done!
@@ -133,7 +133,7 @@ export const PollerServiceLive = Layer.effect(
               workedOn: false,
               timestamp: new Date(),
             })
-            console.log(JSON.stringify({ event: 'build_succeeded' }, null, 2))
+            console.log(JSON.stringify({ event: 'build_succeeded' }))
             return {
               iterations,
               finalStatus: status,
@@ -149,12 +149,6 @@ export const PollerServiceLive = Layer.effect(
               workedOn: false,
               timestamp: new Date(),
             })
-            console.log(
-              JSON.stringify({
-                event: 'waiting',
-                seconds: config.polling.intervalSeconds,
-              }, null, 2)
-            )
             yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
             continue
           }
@@ -166,7 +160,7 @@ export const PollerServiceLive = Layer.effect(
               JSON.stringify({
                 event: 'max_work_iterations_reached',
                 count: workIterationCount,
-              }, null, 2)
+              })
             )
             return {
               iterations,
@@ -181,25 +175,25 @@ export const PollerServiceLive = Layer.effect(
               event: 'work_iteration_start',
               iteration: workIterationCount,
               maxWorkIterations: config.polling.maxWorkIterations,
-            }, null, 2)
+            })
           )
 
           console.log(
             JSON.stringify({
               event: 'build_failed',
               waitingForLogs: failureWaitSeconds,
-            }, null, 2)
+            })
           )
           yield* Effect.sleep(`${failureWaitSeconds} seconds`)
 
           // Extract build failures
           const failuresResult = yield* executor.execute(config.commands.checkBuildFailures)
-          console.log(JSON.stringify({ event: 'failures_extracted' }, null, 2))
+          console.log(JSON.stringify({ event: 'failures_extracted' }))
 
           // Run Claude to fix the issues
-          console.log(JSON.stringify({ event: 'claude_started' }, null, 2))
+          console.log(JSON.stringify({ event: 'claude_started' }))
           const workResult = yield* claudeWorker.work(config.work, failuresResult.stdout)
-          console.log(JSON.stringify({ event: 'claude_finished' }, null, 2))
+          console.log(JSON.stringify({ event: 'claude_finished' }))
 
           iterations.push({
             iteration: workIterationCount,
@@ -210,15 +204,9 @@ export const PollerServiceLive = Layer.effect(
 
           // Publish the fixes
           yield* executor.execute(config.commands.publish)
-          console.log(JSON.stringify({ event: 'fixes_published' }, null, 2))
+          console.log(JSON.stringify({ event: 'fixes_published' }))
 
           // Wait before checking status again
-          console.log(
-            JSON.stringify({
-              event: 'waiting',
-              seconds: config.polling.intervalSeconds,
-            }, null, 2)
-          )
           yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
         }
       })

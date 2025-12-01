@@ -33,14 +33,6 @@ const startAction = async (options: { config: string }) => {
     const main = Effect.gen(function* () {
       // Load configuration from specified path
       const config = yield* loadConfigFrom(options.config)
-      console.log(
-        JSON.stringify({
-          event: 'config_loaded',
-          intervalSeconds: config.polling.intervalSeconds,
-          maxPollTimeMinutes: config.polling.maxPollTimeMinutes,
-          maxWorkIterations: config.polling.maxWorkIterations,
-        }, null, 2)
-      )
 
       // Start polling
       const poller = yield* PollerService
@@ -59,12 +51,12 @@ const startAction = async (options: { config: string }) => {
       )
 
       if (result.finalStatus === 'success') {
-        console.log(JSON.stringify({ event: 'success' }, null, 2))
+        console.log(JSON.stringify({ event: 'success' }))
       } else if (result.maxIterationsReached) {
-        console.log(JSON.stringify({ event: 'max_iterations_exceeded' }, null, 2))
+        console.log(JSON.stringify({ event: 'max_iterations_exceeded' }))
         process.exit(1)
       } else {
-        console.log(JSON.stringify({ event: 'failed' }, null, 2))
+        console.log(JSON.stringify({ event: 'failed' }))
         process.exit(1)
       }
     })
