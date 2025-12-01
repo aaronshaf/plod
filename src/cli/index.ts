@@ -156,29 +156,63 @@ function isConfigError(error: unknown): error is ConfigError {
 function extractValidationErrors(error: unknown): string[] {
   const errorStr = String(error)
   const messages: string[] = []
+  const lines = errorStr.split('\n')
 
-  // Look for "is missing" patterns
-  const missingMatch = errorStr.match(/\["([^"]+)"\][^\n]*is missing/g)
-  if (missingMatch) {
-    missingMatch.forEach((match) => {
-      const field = match.match(/\["([^"]+)"\]/)
-      if (field) {
-        messages.push(`Missing required field: ${field[1]}`)
+  // Look for "is missing" errors
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('is missing')) {
+      // Look backwards for the field name
+      for (let j = i - 1; j >= 0; j--) {
+        const match = lines[j].match(/\["([^"]+)"\]/)
+        if (match) {
+          const field = match[1]
+          // Build full path by collecting all parent fields
+          const pathParts: string[] = []
+          for (let k = 0; k <= j; k++) {
+            const pathMatch = lines[k].match(/\["([^"]+)"\]/)
+            if (pathMatch) {
+              pathParts.push(pathMatch[1])
+            }
+          }
+          const fullPath = pathParts.join('.')
+          messages.push(`Missing required field: ${fullPath}`)
+          break
+        }
       }
-    })
+    }
   }
 
   // Look for type errors
-  const typeMatch = errorStr.match(/Expected ([^,]+), actual ([^\n]+)/g)
+  const typeMatch = errorStr.match(/Expected ([^,]+), actual ([^\n]+)/gi)
   if (typeMatch) {
     typeMatch.forEach((match) => {
       messages.push(match)
     })
   }
 
-  // If no specific errors found, provide generic message
+  // Look for invalid value errors
+  const invalidMatch = errorStr.match(/Expected.*but got.*/gi)
+  if (invalidMatch) {
+    invalidMatch.forEach((match) => {
+      messages.push(match)
+    })
+  }
+
+  // If no specific errors found, try to extract any useful info
   if (messages.length === 0) {
-    messages.push('Configuration validation failed')
+    // Look for any descriptive error lines
+    const errorLines = lines.filter(
+      (line) =>
+        line.includes('Expected') ||
+        line.includes('required') ||
+        line.includes('invalid') ||
+        line.includes('must be')
+    )
+    if (errorLines.length > 0) {
+      messages.push(...errorLines.map((l) => l.trim()).filter((l) => l.length > 0))
+    } else {
+      messages.push('Invalid configuration - check field types and required fields')
+    }
   }
 
   return messages
