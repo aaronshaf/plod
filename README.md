@@ -21,6 +21,32 @@ Think of it like `gh run watch` but for Gerrit CI, with automatic failure remedi
 - **Detailed reporting** - Shows iteration history and final status
 - **Built with Effect.js** - Type-safe, composable effects throughout
 
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. Poll: Check build status                           │
+│     ↓                                                   │
+│  2. Is build pending?                                   │
+│     Yes → Wait and poll again                           │
+│     No  → Continue                                      │
+│     ↓                                                   │
+│  3. Did build succeed?                                  │
+│     Yes → Exit successfully ✓                           │
+│     No  → Continue                                      │
+│     ↓                                                   │
+│  4. Extract failure details                             │
+│     ↓                                                   │
+│  5. Run Claude Code Agent to fix issues                 │
+│     ↓                                                   │
+│  6. Publish fixes                                       │
+│     ↓                                                   │
+│  7. Reached max iterations?                             │
+│     Yes → Exit with failure ✗                           │
+│     No  → Go back to step 1                             │
+└─────────────────────────────────────────────────────────┘
+```
+
 ## Installation
 
 ```bash
@@ -294,32 +320,6 @@ Validate your `plod.config.json` without running.
 ```bash
 plod validate
 plod validate --config ./custom-config.json
-```
-
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  1. Poll: Check build status                           │
-│     ↓                                                   │
-│  2. Is build pending?                                   │
-│     Yes → Wait and poll again                           │
-│     No  → Continue                                      │
-│     ↓                                                   │
-│  3. Did build succeed?                                  │
-│     Yes → Exit successfully ✓                           │
-│     No  → Continue                                      │
-│     ↓                                                   │
-│  4. Extract failure details                             │
-│     ↓                                                   │
-│  5. Run Claude Code Agent to fix issues                 │
-│     ↓                                                   │
-│  6. Publish fixes                                       │
-│     ↓                                                   │
-│  7. Reached max iterations?                             │
-│     Yes → Exit with failure ✗                           │
-│     No  → Go back to step 1                             │
-└─────────────────────────────────────────────────────────┘
 ```
 
 ## Programmatic Usage
