@@ -66,7 +66,7 @@ export const ClaudeWorkerServiceLive = Layer.effect(
 
           // Construct the full prompt with failure details
           let fullPrompt = workConfig.args[promptArgIndex + 1]
-          fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}\n\nIMPORTANT: Explain what you're doing as you work. If you cannot fix these failures, explain why.`
+          fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}\n\nIMPORTANT: You MUST fix these build failures by modifying the code. Do not just analyze - actually make the necessary code changes to fix the issues. Use the Edit or Write tools to modify files. Explain what you're doing as you work. If you cannot fix these failures, explain why and make your best attempt anyway.`
 
           // Log the prompt being sent
           console.log(
@@ -90,19 +90,27 @@ export const ClaudeWorkerServiceLive = Layer.effect(
               permissionMode: 'bypassPermissions',
               allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Task'],
               settingSources: ['project'],
-              sandbox: true, // Enable sandboxing for isolated execution
+              sandbox: {
+                enabled: true,
+                allowedPaths: [process.cwd()], // Allow full access to the working directory
+              },
             },
           })
 
           for await (const message of sdkQuery) {
-            // Log all message types for debugging
-            console.log(JSON.stringify({ event: 'claude_message', messageType: message.type }))
+            const msg = message as any
 
             // Capture assistant messages (Claude's responses)
-            if (message.type === 'assistant' && 'text' in message && typeof message.text === 'string') {
-              output.push(message.text)
-              // Output Claude's response as it comes
-              process.stdout.write(message.text)
+            if (message.type === 'assistant' && msg.message) {
+              // Extract text from message.content array
+              if (Array.isArray(msg.message.content)) {
+                for (const block of msg.message.content) {
+                  if (block.type === 'text' && block.text) {
+                    output.push(block.text)
+                    process.stdout.write(block.text + '\n')
+                  }
+                }
+              }
             }
 
             // Capture tool progress (file edits, reads, etc.)
