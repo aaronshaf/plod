@@ -87,7 +87,7 @@ export const ClaudeWorkerServiceLive = Layer.effect(
               cwd: process.cwd(),
               maxTurns: 10,
               model: 'sonnet',
-              permissionMode: 'acceptEdits',
+              permissionMode: 'bypassPermissions',
               allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Task'],
               settingSources: ['project'],
             },
