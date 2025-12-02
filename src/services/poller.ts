@@ -261,7 +261,7 @@ export const PollerServiceLive = Layer.effect(
             console.log(
               JSON.stringify({
                 event: 'no_changes',
-                message: 'Claude made no changes, skipping publish',
+                message: 'Claude made no changes - stopping to avoid repeated failures',
               })
             )
             iterations.push({
@@ -270,10 +270,12 @@ export const PollerServiceLive = Layer.effect(
               workedOn: false,
               timestamp: new Date(),
             })
-            previousStatus = status
-            // Continue to next iteration without publishing
-            yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
-            continue
+            // Stop polling - no point continuing if Claude can't/won't fix it
+            return {
+              iterations,
+              finalStatus: status,
+              maxIterationsReached: false,
+            }
           }
 
           iterations.push({
