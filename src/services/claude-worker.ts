@@ -68,6 +68,15 @@ export const ClaudeWorkerServiceLive = Layer.effect(
           let fullPrompt = workConfig.args[promptArgIndex + 1]
           fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}`
 
+          // Log the prompt being sent
+          console.log(
+            JSON.stringify({
+              event: 'claude_prompt',
+              promptLength: fullPrompt.length,
+              promptPreview: fullPrompt.substring(0, 500),
+            })
+          )
+
           // Run the Claude Agent SDK
           // The SDK will inherit authentication automatically from the environment
           const output: string[] = []
@@ -85,9 +94,11 @@ export const ClaudeWorkerServiceLive = Layer.effect(
           })
 
           for await (const message of sdkQuery) {
-            // Collect output for logging purposes
+            // Stream output in real-time
             if ('text' in message && typeof message.text === 'string') {
               output.push(message.text)
+              // Output Claude's response as it comes
+              process.stdout.write(message.text)
             }
           }
 

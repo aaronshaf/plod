@@ -207,12 +207,29 @@ export const PollerServiceLive = Layer.effect(
             )
 
           const failureDetails = failuresResult.stdout || failuresResult.stderr
-          console.log(JSON.stringify({ event: 'failures_extracted' }))
+          console.log(
+            JSON.stringify({
+              event: 'failures_extracted',
+              detailsLength: failureDetails.length,
+              detailsPreview: failureDetails.substring(0, 200),
+            })
+          )
 
           // Run Claude to fix the issues
           console.log(JSON.stringify({ event: 'claude_started' }))
           const workResult = yield* claudeWorker.work(config.work, failureDetails)
-          console.log(JSON.stringify({ event: 'claude_finished' }))
+          console.log(
+            JSON.stringify({
+              event: 'claude_finished',
+              success: workResult.success,
+              outputLength: workResult.output.length,
+            })
+          )
+
+          // Log Claude's output for debugging
+          if (workResult.output) {
+            console.log(JSON.stringify({ event: 'claude_output', output: workResult.output }))
+          }
 
           iterations.push({
             iteration: workIterationCount,
