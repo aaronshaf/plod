@@ -66,7 +66,7 @@ export const ClaudeWorkerServiceLive = Layer.effect(
 
           // Construct the full prompt with failure details
           let fullPrompt = workConfig.args[promptArgIndex + 1]
-          fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}`
+          fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}\n\nIMPORTANT: Explain what you're doing as you work. If you cannot fix these failures, explain why.`
 
           // Log the prompt being sent
           console.log(
@@ -97,20 +97,46 @@ export const ClaudeWorkerServiceLive = Layer.effect(
             // Log all message types for debugging
             console.log(JSON.stringify({ event: 'claude_message', messageType: message.type }))
 
-            // Stream output in real-time
-            if ('text' in message && typeof message.text === 'string') {
+            // Capture assistant messages (Claude's responses)
+            if (message.type === 'assistant' && 'text' in message && typeof message.text === 'string') {
               output.push(message.text)
               // Output Claude's response as it comes
               process.stdout.write(message.text)
             }
 
-            // Capture result and system messages
-            if (message.type === 'result' || message.type === 'system') {
+            // Capture tool progress (file edits, reads, etc.)
+            if (message.type === 'tool_progress') {
               console.log(
                 JSON.stringify({
-                  event: 'claude_special_message',
-                  type: message.type,
-                  content: JSON.stringify(message),
+                  event: 'claude_tool_progress',
+                  tool: (message as any).tool,
+                  status: (message as any).status,
+                })
+              )
+            }
+
+            // Capture result messages
+            if (message.type === 'result') {
+              const resultMsg = message as any
+              console.log(
+                JSON.stringify({
+                  event: 'claude_result',
+                  success: resultMsg.success,
+                  message: resultMsg.message || resultMsg.text,
+                })
+              )
+              if (resultMsg.text) {
+                output.push(resultMsg.text)
+              }
+            }
+
+            // Capture system messages
+            if (message.type === 'system') {
+              const systemMsg = message as any
+              console.log(
+                JSON.stringify({
+                  event: 'claude_system',
+                  message: systemMsg.text || systemMsg.message,
                 })
               )
             }

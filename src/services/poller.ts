@@ -229,6 +229,13 @@ export const PollerServiceLive = Layer.effect(
           // Log Claude's output for debugging
           if (workResult.output) {
             console.log(JSON.stringify({ event: 'claude_output', output: workResult.output }))
+          } else {
+            console.log(
+              JSON.stringify({
+                event: 'claude_no_output',
+                warning: 'Claude completed but produced no text output',
+              })
+            )
           }
 
           // Check if there are any changes to commit
