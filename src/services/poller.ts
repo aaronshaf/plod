@@ -230,6 +230,10 @@ export const PollerServiceLive = Layer.effect(
             })
           )
 
+          // Capture the current git state before running Claude
+          const beforeShaResult = yield* executor.execute('git rev-parse HEAD')
+          const beforeSha = beforeShaResult.stdout.trim()
+
           // Run Claude to fix the issues
           console.log(JSON.stringify({ event: 'claude_started' }))
           const workResult = yield* claudeWorker.work(config.work, failureDetails)
@@ -253,15 +257,35 @@ export const PollerServiceLive = Layer.effect(
             )
           }
 
-          // Check if there are any changes to commit
+          // Check if there are any changes - either unstaged or in a new commit
           const gitStatusResult = yield* executor.execute('git status --porcelain')
-          const hasChanges = gitStatusResult.stdout.trim().length > 0
+          const hasUnstagedChanges = gitStatusResult.stdout.trim().length > 0
+
+          const afterShaResult = yield* executor.execute('git rev-parse HEAD')
+          const afterSha = afterShaResult.stdout.trim()
+          const hasNewCommit = beforeSha !== afterSha
+
+          const hasChanges = hasUnstagedChanges || hasNewCommit
+
+          if (hasChanges) {
+            console.log(
+              JSON.stringify({
+                event: 'changes_detected',
+                hasUnstagedChanges,
+                hasNewCommit,
+                beforeSha: beforeSha.substring(0, 8),
+                afterSha: afterSha.substring(0, 8),
+              })
+            )
+          }
 
           if (!hasChanges) {
             console.log(
               JSON.stringify({
                 event: 'no_changes',
                 message: 'Claude made no changes - stopping to avoid repeated failures',
+                beforeSha,
+                afterSha,
               })
             )
             iterations.push({
