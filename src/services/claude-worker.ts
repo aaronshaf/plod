@@ -66,7 +66,14 @@ export const ClaudeWorkerServiceLive = Layer.effect(
 
           // Construct the full prompt with failure details
           let fullPrompt = workConfig.args[promptArgIndex + 1]
-          fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}\n\nIMPORTANT: You MUST fix these build failures by modifying the code. Do not just analyze - actually make the necessary code changes to fix the issues. Use the Edit or Write tools to modify files. Explain what you're doing as you work. If you cannot fix these failures, explain why and make your best attempt anyway.`
+          fullPrompt = `Build failures detected:\n\n${failureDetails}\n\n${fullPrompt}\n\nCRITICAL INSTRUCTIONS:
+1. You MUST actually FIX the code - do not just analyze or explain the problem
+2. Use the Edit tool to modify the failing files immediately
+3. Make the specific code changes needed to fix the test failures
+4. Do NOT stop after reading files - you must write/edit files to fix the issues
+5. If you understand the problem, fix it right away - do not ask for permission
+
+Start by reading the necessary files, then IMMEDIATELY use Edit to fix them.`
 
           // Log the prompt being sent
           console.log(
@@ -85,7 +92,7 @@ export const ClaudeWorkerServiceLive = Layer.effect(
             prompt: fullPrompt,
             options: {
               cwd: process.cwd(),
-              maxTurns: 10,
+              maxTurns: 25, // Increased from 10 to allow more back-and-forth for complex fixes
               model: 'sonnet',
               permissionMode: 'bypassPermissions',
               allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Task'],
@@ -131,6 +138,9 @@ export const ClaudeWorkerServiceLive = Layer.effect(
                 JSON.stringify({
                   event: 'claude_result',
                   success: resultMsg.success,
+                  numTurns: resultMsg.num_turns,
+                  isError: resultMsg.is_error,
+                  errors: resultMsg.errors,
                   message: resultMsg.message || resultMsg.text,
                 })
               )
