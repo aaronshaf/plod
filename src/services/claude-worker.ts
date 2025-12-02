@@ -92,7 +92,7 @@ Start by reading the necessary files, then IMMEDIATELY use Edit to fix them.`
             prompt: fullPrompt,
             options: {
               cwd: process.cwd(),
-              maxTurns: 25, // Increased from 10 to allow more back-and-forth for complex fixes
+              maxTurns: 10000, // Essentially unlimited turns for complex fixes
               model: 'sonnet',
               permissionMode: 'bypassPermissions',
               allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Task'],
