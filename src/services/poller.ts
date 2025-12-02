@@ -96,6 +96,7 @@ export const PollerServiceLive = Layer.effect(
       Effect.gen(function* () {
         const iterations: IterationResult[] = []
         let workIterationCount = 0
+        let previousStatus: BuildStatus | null = null
         const failureWaitSeconds = config.polling.intervalSeconds * 3
         const maxPollTimeMs = config.polling.maxPollTimeMinutes * 60 * 1000
         const startTime = Date.now()
@@ -149,6 +150,7 @@ export const PollerServiceLive = Layer.effect(
               workedOn: false,
               timestamp: new Date(),
             })
+            previousStatus = status
             yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
             continue
           }
@@ -178,13 +180,26 @@ export const PollerServiceLive = Layer.effect(
             })
           )
 
-          console.log(
-            JSON.stringify({
-              event: 'build_failed',
-              waitingForLogs: failureWaitSeconds,
-            })
-          )
-          yield* Effect.sleep(`${failureWaitSeconds} seconds`)
+          // Only wait for logs if we just transitioned from pending to failure
+          // (i.e., the build was running and just failed)
+          // Don't wait if this is the first check or if we already saw failure before
+          const shouldWaitForLogs = previousStatus === 'pending'
+          if (shouldWaitForLogs) {
+            console.log(
+              JSON.stringify({
+                event: 'build_failed',
+                waitingForLogs: failureWaitSeconds,
+              })
+            )
+            yield* Effect.sleep(`${failureWaitSeconds} seconds`)
+          } else {
+            console.log(
+              JSON.stringify({
+                event: 'build_failed',
+                waitingForLogs: 0,
+              })
+            )
+          }
 
           // Extract build failures
           // Note: This command may return non-zero exit code if failures exist, which is expected
@@ -255,6 +270,7 @@ export const PollerServiceLive = Layer.effect(
               workedOn: false,
               timestamp: new Date(),
             })
+            previousStatus = status
             // Continue to next iteration without publishing
             yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
             continue
@@ -271,6 +287,9 @@ export const PollerServiceLive = Layer.effect(
           console.log(JSON.stringify({ event: 'publishing_changes' }))
           yield* executor.execute(config.commands.publish)
           console.log(JSON.stringify({ event: 'fixes_published' }))
+
+          // Update previous status before continuing
+          previousStatus = status
 
           // Wait before checking status again
           yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
