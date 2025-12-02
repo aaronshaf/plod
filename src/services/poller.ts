@@ -231,6 +231,28 @@ export const PollerServiceLive = Layer.effect(
             console.log(JSON.stringify({ event: 'claude_output', output: workResult.output }))
           }
 
+          // Check if there are any changes to commit
+          const gitStatusResult = yield* executor.execute('git status --porcelain')
+          const hasChanges = gitStatusResult.stdout.trim().length > 0
+
+          if (!hasChanges) {
+            console.log(
+              JSON.stringify({
+                event: 'no_changes',
+                message: 'Claude made no changes, skipping publish',
+              })
+            )
+            iterations.push({
+              iteration: workIterationCount,
+              status,
+              workedOn: false,
+              timestamp: new Date(),
+            })
+            // Continue to next iteration without publishing
+            yield* Effect.sleep(`${config.polling.intervalSeconds} seconds`)
+            continue
+          }
+
           iterations.push({
             iteration: workIterationCount,
             status,
@@ -239,6 +261,7 @@ export const PollerServiceLive = Layer.effect(
           })
 
           // Publish the fixes
+          console.log(JSON.stringify({ event: 'publishing_changes' }))
           yield* executor.execute(config.commands.publish)
           console.log(JSON.stringify({ event: 'fixes_published' }))
 

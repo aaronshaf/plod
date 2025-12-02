@@ -94,13 +94,36 @@ export const ClaudeWorkerServiceLive = Layer.effect(
           })
 
           for await (const message of sdkQuery) {
+            // Log all message types for debugging
+            console.log(JSON.stringify({ event: 'claude_message', messageType: message.type }))
+
             // Stream output in real-time
             if ('text' in message && typeof message.text === 'string') {
               output.push(message.text)
               // Output Claude's response as it comes
               process.stdout.write(message.text)
             }
+
+            // Capture result and system messages
+            if (message.type === 'result' || message.type === 'system') {
+              console.log(
+                JSON.stringify({
+                  event: 'claude_special_message',
+                  type: message.type,
+                  content: JSON.stringify(message),
+                })
+              )
+            }
           }
+
+          // Log final statistics
+          console.log(
+            JSON.stringify({
+              event: 'claude_complete',
+              totalOutputLength: output.length,
+              hasOutput: output.length > 0,
+            })
+          )
 
           return {
             success: true,
