@@ -90,6 +90,7 @@ export const ClaudeWorkerServiceLive = Layer.effect(
               permissionMode: 'bypassPermissions',
               allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Task'],
               settingSources: ['project'],
+              sandbox: true, // Enable sandboxing for isolated execution
             },
           })
 
